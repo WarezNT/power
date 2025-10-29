@@ -23,6 +23,7 @@ interface Departure {
   section: string;
   material: string;
   manualFuse: number | null;
+  realCurrent?: number | null; // Curent real în A din altă aplicație (opțional)
 }
 
 const TransformerFuseCalculator = () => {
@@ -31,8 +32,9 @@ const TransformerFuseCalculator = () => {
   const [secondaryVoltage, setSecondaryVoltage] = useState(0.4);
   const [powerFactor, setPowerFactor] = useState(0.9);
   const [generalFuseFactor, setGeneralFuseFactor] = useState(1.0);
+  const [useRealCurrent, setUseRealCurrent] = useState(false); // Mod calcul: false = automat, true = curent real
   const [departures, setDepartures] = useState<Departure[]>([
-    { id: 1, cableType: 'NFA2X', section: '3x50+25', material: 'AL', manualFuse: null }
+    { id: 1, cableType: 'NFA2X', section: '3x50+25', material: 'AL', manualFuse: null, realCurrent: null }
   ]);
 
   // Date cabluri și conductoare din aluminiu - Valori reale din cataloage Romania
@@ -99,7 +101,7 @@ const TransformerFuseCalculator = () => {
   const addDeparture = () => {
     setDepartures([
       ...departures,
-      { id: Date.now(), cableType: 'NFA2X', section: '3x50+25', material: 'AL', manualFuse: null }
+      { id: Date.now(), cableType: 'NFA2X', section: '3x50+25', material: 'AL', manualFuse: null, realCurrent: null }
     ]);
   };
 
@@ -143,22 +145,28 @@ interface FuseCalculationResult {
 
   // Calcul grad de încărcare transformator
   const loadingAnalysis = useMemo(() => {
-    const totalFuseCurrent = departures.reduce((sum: number, dep: Departure) => {
-      const fuseData = calculateDepartureFuse(dep.cableType, dep.section, dep.manualFuse);
-      return sum + (typeof fuseData.fuse === 'number' ? fuseData.fuse : 0);
+    const totalCurrent = departures.reduce((sum: number, dep: Departure) => {
+      if (useRealCurrent && dep.realCurrent !== null && dep.realCurrent !== undefined) {
+        // Folosim curentul real introdus manual
+        return sum + dep.realCurrent;
+      } else {
+        // Folosim calculul automat pe baza siguranțelor
+        const fuseData = calculateDepartureFuse(dep.cableType, dep.section, dep.manualFuse);
+        return sum + (typeof fuseData.fuse === 'number' ? fuseData.fuse : 0);
+      }
     }, 0);
     
     const secondaryCurrent = parseFloat(calculations.secondaryCurrent);
-    const loadingPercentage = (totalFuseCurrent / secondaryCurrent) * 100;
-    const isOverloaded = totalFuseCurrent > secondaryCurrent;
+    const loadingPercentage = (totalCurrent / secondaryCurrent) * 100;
+    const isOverloaded = totalCurrent > secondaryCurrent;
     
     return {
-      totalFuseCurrent: totalFuseCurrent.toFixed(2),
+      totalCurrent: totalCurrent.toFixed(2),
       loadingPercentage: loadingPercentage.toFixed(1),
       isOverloaded,
-      availableCurrent: (secondaryCurrent - totalFuseCurrent).toFixed(2)
+      availableCurrent: (secondaryCurrent - totalCurrent).toFixed(2)
     };
-  }, [departures, calculations.secondaryCurrent]);
+  }, [departures, calculations.secondaryCurrent, useRealCurrent]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -267,6 +275,42 @@ interface FuseCalculationResult {
             </div>
           </div>
 
+          {/* Mod de calcul */}
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-8">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Calculator className="w-5 h-5" />
+              Mod de Calcul Încărcare Trafo
+            </h2>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="calculationMode"
+                  checked={!useRealCurrent}
+                  onChange={() => setUseRealCurrent(false)}
+                  className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Calcul automat (pe baza siguranțelor)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="calculationMode"
+                  checked={useRealCurrent}
+                  onChange={() => setUseRealCurrent(true)}
+                  className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Curent real din altă aplicație</span>
+              </label>
+            </div>
+            <div className="mt-3 text-xs text-gray-600">
+              {useRealCurrent 
+                ? "✏️ Introduceți curentul real (în A) pentru fiecare plecare din altă aplicație de calcul"
+                : "🔢 Încărcarea se calculează automat pe baza siguranțelor selectate pentru fiecare plecare"
+              }
+            </div>
+          </div>
+
           {/* Rezultate Calcule Principale */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {/* Medie Tensiune */}
@@ -350,8 +394,10 @@ interface FuseCalculationResult {
                       <span className="font-bold text-lg">{calculations.secondaryCurrent} A</span>
                     </div>
                     <div>
-                      <span className="text-gray-600 block">Σ Siguranțe plecări:</span>
-                      <span className="font-bold text-lg">{loadingAnalysis.totalFuseCurrent} A</span>
+                      <span className="text-gray-600 block">
+                        {useRealCurrent ? 'Σ Curenți reali plecări:' : 'Σ Siguranțe plecări:'}
+                      </span>
+                      <span className="font-bold text-lg">{loadingAnalysis.totalCurrent} A</span>
                     </div>
                     <div>
                       <span className="text-gray-600 block">Grad încărcare:</span>
@@ -381,10 +427,15 @@ interface FuseCalculationResult {
                     <div className="mt-3 p-3 bg-red-100 rounded border border-red-300">
                       <p className="text-red-800 font-semibold">⚠️ ATENȚIE: Supraîncărcare transformator!</p>
                       <p className="text-red-700 text-sm mt-1">
-                        Suma curenților nominali ai siguranțelor pe plecări ({loadingAnalysis.totalFuseCurrent} A) 
-                        depășește curentul nominal al transformatorului ({calculations.secondaryCurrent} A).
+                        {useRealCurrent 
+                          ? `Suma curenților reali pe plecări (${loadingAnalysis.totalCurrent} A)`
+                          : `Suma curenților nominali ai siguranțelor pe plecări (${loadingAnalysis.totalCurrent} A)`
+                        } depășește curentul nominal al transformatorului ({calculations.secondaryCurrent} A).
                         <br/>
-                        <strong>Recomandare:</strong> Reduceți siguranțele pe plecări sau alegeți un transformator de putere superioară.
+                        <strong>Recomandare:</strong> {useRealCurrent 
+                          ? 'Reduceți încărcările pe plecări sau alegeți un transformator de putere superioară.'
+                          : 'Reduceți siguranțele pe plecări sau alegeți un transformator de putere superioară.'
+                        }
                       </p>
                     </div>
                   )}
@@ -571,6 +622,33 @@ interface FuseCalculationResult {
                           </span>
                         </div>
                       </div>
+                      
+                      {/* Câmp pentru curent real - doar când e selectat modul manual */}
+                      {useRealCurrent && (
+                        <div className="border-t-2 border-purple-200 pt-3 mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            🔌 Curent Real din Altă Aplicație (A)
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={dep.realCurrent || ''}
+                              onChange={(e) => {
+                                const value = e.target.value === '' ? null : Number(e.target.value);
+                                updateDeparture(dep.id, 'realCurrent', value);
+                              }}
+                              placeholder="Introduceți curentul real..."
+                              step="0.1"
+                              min="0"
+                              className="flex-1 px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-semibold"
+                            />
+                            <span className="text-sm text-gray-600">A</span>
+                          </div>
+                          <div className="mt-2 text-xs text-purple-600">
+                            💡 Introduceți valoarea curentului real calculat în altă aplicație pentru această plecare
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Recomandări inteligente */}
                       {optimalFuse && optimalFuse < (fuseData.autoFuse as number) && (
