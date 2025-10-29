@@ -78,13 +78,18 @@ const TransformerFuseCalculator = () => {
     const secondaryCurrent = (powerKVA * 1000) / (Math.sqrt(3) * secondaryVoltage * 1000 * powerFactor);
     
     // Siguranță MT: 
-    // Practica uzuală în România: (2.0 - 2.5) x In primar pentru protecție transformator
-    // Se folosește 2.0 pentru transformatoare mici-medii
+    // Conform PE 101/1985 și I7-02: (2.0 - 2.5) x In primar pentru protecție transformator
+    // Factor 2.0 pentru transformatoare mici-medii (≤630kVA) - permite pornire fără declanșare
+    // Factor 2.5 pentru transformatoare mari (>630kVA) - consideră căderi de tensiune
+    // Protecție împotriva suprasarcinilor și scurtcircuite fază-împământare
     const mvFuseCalc = primaryCurrent * 2.0;
     const mvFuse = fuseSeriesMV.find(f => f >= mvFuseCalc) || fuseSeriesMV[fuseSeriesMV.length - 1];
     
     // Siguranță general trafo (JT):
-    // Factor selectabil conform brosură (0.8-1.6 x In secundar)
+    // Conform PE 101/1985 și SR HD 60364-5-53: (1.25 - 1.6) x In secundar pentru selectivitate
+    // Factor 1.6 pentru instalații cu consumatori diverși - asigură selectivitate cu plecări
+    // Factor 1.25 pentru instalații cu consumatori similari - optimizare economică
+    // Protecție împotriva supracurenților și coordonare cu dispozitivele de jos
     const generalFuseCalc = secondaryCurrent * generalFuseFactor;
     const generalFuse = fuseSeriesLV.find(f => f >= generalFuseCalc) || fuseSeriesLV[fuseSeriesLV.length - 1];
     
@@ -692,14 +697,21 @@ interface FuseCalculationResult {
             <div className="flex gap-3">
               <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-700">
-                <p className="font-semibold mb-2">Criterii de dimensionare utilizate:</p>
+                <p className="font-semibold mb-2">Criterii de dimensionare conform normative românești:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li><strong>Siguranță MT:</strong> In = 2.0 × Curent nominal primar (protecție transformator)</li>
-                  <li><strong>Siguranță General JT:</strong> In = 1.6 × Curent nominal secundar (protecție și selectivitate)</li>
-                  <li><strong>Siguranțe plecări:</strong> In ≤ Iz (curent admisibil cablu) - conform I7/SR HD 60364-5-52</li>
-                  <li><strong>Conductoare:</strong> Aluminiu (AL) - NFA2X (torsadat aerian) și NA2XABY (subteran armat)</li>
-                  <li><strong>Puteri transformator:</strong> 50 - 1000 kVA (valori standardizate)</li>
-                  <li><strong>Verificări necesare:</strong> Putere scurtcircuit, protecție diferențială, coordonare protecții</li>
+                  <li><strong>Siguranță MT:</strong> In = 2.0 × Curent nominal primar (PE 101/1985, I7-02) - protecție transformator împotriva suprasarcinilor și scurtcircuite</li>
+                  <li><strong>Siguranță General JT:</strong> In = 1.6 × Curent nominal secundar (SR HD 60364-5-53) - asigură selectivitate și protecție coordonată</li>
+                  <li><strong>Siguranțe plecări:</strong> In ≤ Iz (curent admisibil cablu) - conform I7/SR HD 60364-5-52 și cataloage producători</li>
+                  <li><strong>Conductoare:</strong> Aluminiu (AL) - NFA2X (torsadat aerian) și NA2XABY (subteran armat) conform STAS și norme europene</li>
+                  <li><strong>Puteri transformator:</strong> 50 - 1000 kVA (valori standardizate conform cataloage Electroputere)</li>
+                  <li><strong>Verificări suplimentare:</strong> Putere scurtcircuit ≥ 50kA, protecție diferențială, coordonare protecții conform PE 101</li>
+                </ul>
+                <p className="mt-3 font-semibold">Precizări normative importante:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>Factor MT 2.0:</strong> Permite pornirea transformatorului fără declanșare la curenți de vârf</li>
+                  <li><strong>Factor JT 1.6:</strong> Asigură selectivitate cu siguranțele de pe plecări (factor 1.0-1.25)</li>
+                  <li><strong>Protecție coordonată:</strong> MT protejează transformatorul, JT protejează instalația de jos</li>
+                  <li><strong>Cazuri speciale:</strong> Pentru transformatoare &gt;630kVA se poate utiliza factor MT=2.5</li>
                 </ul>
                 <p className="mt-3 font-semibold">Date tehnice cabluri:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
@@ -708,7 +720,9 @@ interface FuseCalculationResult {
                   <li>Curenți admisibili conform cataloage producători din România și SR HD 60364-5-52</li>
                 </ul>
                 <p className="mt-3 text-xs italic">
-                  Referințe: PE 101/85, I7-02, SR HD 60364-5-52, Specificații Tehnice Unificate OD
+                  Referințe normative: PE 101/1985 (Proiectarea instalațiilor electrice), I7-02 (Protecția împotriva supracurenților), 
+                  SR HD 60364-5-52/53 (Instalații electrice de joasă tensiune), STAS 8345-87 (Instalații electrice), 
+                  Specificații Tehnice Unificate OD (Oficiul Distribuție Energie Electrică)
                 </p>
               </div>
             </div>
