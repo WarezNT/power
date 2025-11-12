@@ -150,14 +150,25 @@ interface FuseCalculationResult {
 
   // Calcul grad de încărcare transformator
   const loadingAnalysis = useMemo(() => {
+    // Funcție internă pentru calcul siguranță
+    const calcFuse = (cableType: keyof CableDatabase, section: string, manualFuse: number | null): number => {
+      const cable = cableData[cableType]?.[section];
+      if (!cable) return 0;
+      
+      if (manualFuse !== null) return manualFuse;
+      
+      const autoFuse = fuseSeriesLV.filter(f => f <= cable.current).pop() || fuseSeriesLV[0];
+      return autoFuse;
+    };
+
     const totalCurrent = departures.reduce((sum: number, dep: Departure) => {
       if (useRealCurrent && dep.realCurrent !== null && dep.realCurrent !== undefined) {
         // Folosim curentul real introdus manual
         return sum + dep.realCurrent;
       } else {
         // Folosim calculul automat pe baza siguranțelor
-        const fuseData = calculateDepartureFuse(dep.cableType, dep.section, dep.manualFuse);
-        return sum + (typeof fuseData.fuse === 'number' ? fuseData.fuse : 0);
+        const fuseValue = calcFuse(dep.cableType, dep.section, dep.manualFuse);
+        return sum + fuseValue;
       }
     }, 0);
     
@@ -171,7 +182,7 @@ interface FuseCalculationResult {
       isOverloaded,
       availableCurrent: (secondaryCurrent - totalCurrent).toFixed(2)
     };
-  }, [departures, calculations.secondaryCurrent, useRealCurrent]);
+  }, [departures, calculations.secondaryCurrent, useRealCurrent, cableData, fuseSeriesLV]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
