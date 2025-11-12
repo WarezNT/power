@@ -115,9 +115,15 @@ const TransformerFuseCalculator = () => {
   };
 
   const updateDeparture = (id: number, field: keyof Departure, value: any) => {
-    setDepartures(departures.map((d: Departure) => 
-      d.id === id ? { ...d, [field]: value } : d
-    ));
+    console.log('updateDeparture called:', { id, field, value });
+    setDepartures(prevDepartures => prevDepartures.map((d: Departure) => {
+      if (d.id === id) {
+        const updated = { ...d, [field]: value };
+        console.log('Updated departure:', updated);
+        return updated;
+      }
+      return d;
+    }));
   };
 
 interface FuseCalculationResult {
